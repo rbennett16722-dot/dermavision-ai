@@ -9,7 +9,7 @@ A transformer-enhanced skin lesion classifier trained on a multi-source, multi-d
 
 ## Overview
 
-DermaVision AI classifies dermoscopic and clinical skin lesion images into 9 diagnostic categories. The **Silver Model** builds on an EfficientNetB0 bronze baseline by expanding the training data to ~32,500 images across three datasets, introducing two additional architectures (SwinV2 and BiomedCLIP), and adding a held-out fairness evaluation on independently sourced datasets (Fitzpatrick17k, DDI).
+DermaVision AI classifies dermoscopic and clinical skin lesion images into 9 diagnostic categories. The **Silver Model** builds on an EfficientNetB0 bronze baseline by expanding the training data to ~38,100 images across three datasets, introducing two additional architectures (SwinV2 and BiomedCLIP), and adding a held-out fairness evaluation on independently sourced datasets (Fitzpatrick17k, DDI).
 
 ---
 
@@ -33,12 +33,12 @@ DermaVision AI classifies dermoscopic and clinical skin lesion images into 9 dia
 
 | Dataset | Images | Device | Origin | Fitzpatrick |
 |---------|--------|--------|--------|-------------|
-| ISIC 2019 | ~25,000 | Dermoscope | Multi-country | Implicit (I–III dominant) |
-| PAD-UFES-20 | ~2,300 | Smartphone | Brazil | Explicit I–VI |
-| MILK10k | ~5,200 | Dermoscope | ISIC 2025 challenge | Implicit |
-| **Total** | **~32,500** | Mixed | Multi-country | I–VI |
+| ISIC 2019 | 25,331 | Dermoscope | Multi-country | Implicit (I–III dominant) |
+| PAD-UFES-20 | 2,298 | Smartphone | Brazil | Explicit I–VI |
+| MILK10k | 10,480 | Dermoscope | ISIC 2025 challenge | Implicit |
+| **Total** | **38,109** | Mixed | Multi-country | I–VI |
 
-The bronze model (HAM10000 only, ~10,000 images, Fitzpatrick I–III dominant) served as the controlled baseline. The silver pool triples the training size, adds smartphone images, and meaningfully extends darker skin tone coverage via PAD-UFES-20.
+The bronze model (HAM10000 only, ~10,000 images, Fitzpatrick I–III dominant) served as the controlled baseline. The silver pool nearly quadruples the training size, adds smartphone images, and meaningfully extends darker skin tone coverage via PAD-UFES-20.
 
 ---
 
@@ -110,15 +110,41 @@ Per-Fitzpatrick-type accuracy, melanoma recall, and BCC recall are reported for 
 
 ## Results
 
-| Model | Bal. Accuracy | Macro AUROC | Mel Recall | BCC Recall | Fitz Gap |
-|-------|--------------|-------------|------------|------------|----------|
-| Bronze — EfficientNetB0 (HAM10000) | TBD | TBD | TBD | TBD | TBD |
-| EfficientNetB0 (Silver) | TBD | TBD | TBD | TBD | TBD |
-| SwinV2 (Silver) | TBD | TBD | TBD | TBD | TBD |
-| BiomedCLIP (Silver) | TBD | TBD | TBD | TBD | TBD |
-| Ensemble | TBD | TBD | TBD | TBD | TBD |
+Test set: 5,717 images (held-out, never seen during training).
 
-*Results to be populated after training runs complete.*
+| Model | Bal. Accuracy | Macro AUROC | Mel Recall | BCC Recall | SCC Recall |
+|-------|:------------:|:-----------:|:----------:|:----------:|:----------:|
+| Bronze — EfficientNetB0 (HAM10000) | — | — | — | — | — |
+| EfficientNetB0 (Silver) | 0.361 | 0.869 | 0.486 | 0.019 | 0.902 |
+| SwinV2-Tiny (Silver) | **0.685** | **0.956** | 0.748 | **0.771** | 0.566 |
+| BiomedCLIP (Silver) | 0.630 | 0.930 | **0.795** | 0.730 | 0.445 |
+| Ensemble (equal weight) | 0.699 | 0.955 | **0.798** | 0.740 | **0.691** |
+
+SwinV2 is the strongest single model. BiomedCLIP achieves the highest melanoma recall (79.5%), reflecting its biomedical pretraining. The ensemble is the best overall performer.
+
+> **Note on EfficientNetB0 BCC recall (0.019):** The model routes nearly all BCC predictions to SCC due to a class weight imbalance in the focal loss (SCC weight 5× higher than BCC). This is corrected in the Gold model via a weighted ensemble. See `Silver-Model-Review.md` for full analysis.
+
+### Fairness Audit — Fitzpatrick17k (held-out, n=16,574)
+
+| Fitzpatrick Type | N | Accuracy | Mel Recall |
+|:----------------|--:|:--------:|:----------:|
+| Type I | 2,947 | 0.277 | 0.098 |
+| Type II | 4,808 | 0.281 | 0.185 |
+| Type III | 3,308 | 0.271 | 0.140 |
+| Type IV | 2,781 | 0.248 | 0.132 |
+| Type V | 1,533 | 0.241 | 0.087 |
+| Type VI | 635 | 0.335 | 0.273 |
+| **Max gap** | — | **0.124** | **0.214** |
+
+### Fairness Audit — DDI Stanford (held-out, n=656)
+
+| Skin Tone | Malignant Recall (Ensemble) |
+|:----------|:---------------------------:|
+| Fitzpatrick I–II | 0.490 |
+| Fitzpatrick III–IV | 0.568 |
+| Fitzpatrick V–VI | **0.354** |
+
+Malignant recall is lowest for the darkest skin tone group, confirming that the training data imbalance toward lighter skin tones (ISIC 2019) persists despite PAD-UFES-20's contribution.
 
 ---
 
