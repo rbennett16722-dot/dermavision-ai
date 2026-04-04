@@ -153,13 +153,20 @@ Malignant recall is lowest for the darkest skin tone group, confirming that the 
 ```
 dermavision-ai/
 ├── Silver-model.ipynb      # Main notebook: data loading, training, eval, fairness audit
+├── Gold-model.ipynb        # Gold improvements: weighted ensemble, TTA, temperature scaling
+├── Report-Draft.md         # Full paper draft with real Silver results
+├── Silver-Model-Review.md  # Code review: issues found and recommended fixes
+├── Gold-Model-Guide.md     # Plain-language guide to Gold improvements and how to run
+├── Project-Proposal.md     # Original project proposal
 ├── data/                   # Raw datasets (git-ignored; download via kagglehub)
 │   └── .gitkeep
 ├── .gitignore
 └── README.md
 ```
 
-The notebook runs in **Google Colab** (GPU recommended: T4 or A100). Datasets are downloaded automatically via `kagglehub`.
+All notebooks run in **Google Colab** (GPU recommended: T4 or A100). Datasets are downloaded automatically via `kagglehub`.
+
+> **Note:** `Silver-model.ipynb` is 1.2MB and exceeds GitHub's 1MB notebook preview limit — you will see "Sorry, this file is too large to display." The file downloads and runs correctly. To open it: click the file on GitHub → click the download button, then upload to Colab via **File → Upload notebook**.
 
 ---
 
