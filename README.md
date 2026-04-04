@@ -1,128 +1,183 @@
-# DermaVision AI
+# DermaVision AI — Silver Model
 
-A CNN-based skin lesion classifier trained on the HAM10000 dataset, with a built-in fairness audit across Fitzpatrick skin types.
+A transformer-enhanced skin lesion classifier trained on a multi-source, multi-device dataset, with a held-out fairness audit across Fitzpatrick skin types I–VI.
+
+**Team:** Group 7 | Kishore, Ellie Lansdown, Ryan Bennett, Grace Callahan & Stephanie Furst  
+**Course:** MSBC 5190 Modern AI for Business | Spring 2026
+
+---
 
 ## Overview
 
-DermaVision AI fine-tunes **EfficientNet-B0** (ImageNet pre-trained) to classify dermoscopic images into seven diagnostic categories from the [HAM10000 dataset](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T). A fairness evaluation module then measures per-class performance stratified by Fitzpatrick skin phototype (Types I–VI) to surface potential model bias.
+DermaVision AI classifies dermoscopic and clinical skin lesion images into 9 diagnostic categories. The **Silver Model** builds on an EfficientNetB0 bronze baseline by expanding the training data to ~32,500 images across three datasets, introducing two additional architectures (SwinV2 and BiomedCLIP), and adding a held-out fairness evaluation on independently sourced datasets (Fitzpatrick17k, DDI).
 
-## Lesion Classes (HAM10000)
+---
 
-| Code | Diagnosis |
-|------|-----------|
-| mel  | Melanoma |
-| nv   | Melanocytic nevi |
-| bcc  | Basal cell carcinoma |
-| akiec| Actinic keratosis / Bowen's disease |
-| bkl  | Benign keratosis-like lesions |
-| df   | Dermatofibroma |
-| vasc | Vascular lesions |
+## Lesion Classes (9 harmonised)
+
+| Code | Diagnosis | Risk |
+|------|-----------|------|
+| mel | Melanoma | HIGH |
+| nv | Melanocytic nevi | Low |
+| bcc | Basal cell carcinoma | HIGH |
+| scc | Squamous cell carcinoma | HIGH |
+| akiec | Actinic keratosis / Bowen's disease | Moderate |
+| bkl | Benign keratosis-like lesions | Low |
+| df | Dermatofibroma | Low |
+| vasc | Vascular lesions | Low |
+| unk | Other / Unknown | — |
+
+---
+
+## Training Data
+
+| Dataset | Images | Device | Origin | Fitzpatrick |
+|---------|--------|--------|--------|-------------|
+| ISIC 2019 | ~25,000 | Dermoscope | Multi-country | Implicit (I–III dominant) |
+| PAD-UFES-20 | ~2,300 | Smartphone | Brazil | Explicit I–VI |
+| MILK10k | ~5,200 | Dermoscope | ISIC 2025 challenge | Implicit |
+| **Total** | **~32,500** | Mixed | Multi-country | I–VI |
+
+The bronze model (HAM10000 only, ~10,000 images, Fitzpatrick I–III dominant) served as the controlled baseline. The silver pool triples the training size, adds smartphone images, and meaningfully extends darker skin tone coverage via PAD-UFES-20.
+
+---
 
 ## Model Architecture
 
-- **Backbone:** EfficientNet-B0 (torchvision, ImageNet weights)
-- **Classifier head:** Dropout(0.3) → Linear(1280, 7)
-- **Loss:** Cross-entropy with class-frequency inverse weighting (addresses HAM10000 class imbalance)
-- **Optimizer:** AdamW, lr=1e-4, weight decay=1e-2
-- **Scheduler:** CosineAnnealingLR
-- **Input:** 224×224 RGB, normalized to ImageNet mean/std
-- **Augmentation:** RandomHorizontalFlip, RandomVerticalFlip, ColorJitter, RandomRotation(20°)
+Three models are trained and compared. All use a **two-phase fine-tuning** strategy: Phase 1 freezes the backbone and trains the classification head; Phase 2 unfreezes the backbone for end-to-end fine-tuning at a low learning rate.
+
+### Model 1 — EfficientNetB0 (Silver Baseline)
+- **Framework:** TensorFlow / Keras
+- **Backbone:** EfficientNetB0 (ImageNet pre-trained)
+- **Head:** GlobalAveragePooling2D → Dense(512) → BatchNorm → Dropout(0.5) → Dense(256) → Dropout(0.3) → Dense(9, softmax)
+- **Purpose:** Controlled reference — isolates the contribution of data diversity from architecture changes.
+
+### Model 2 — SwinV2-Tiny (Vision Transformer)
+- **Framework:** PyTorch + timm
+- **Backbone:** `swinv2_tiny_window8_256` (~28M params, ImageNet pre-trained)
+- **Head:** Linear(768, 512) → ReLU → Dropout(0.4) → Linear(512, 256) → ReLU → Dropout(0.3) → Linear(256, 9)
+- **Why:** Self-attention captures long-range spatial dependencies (global lesion asymmetry, irregular borders) that CNN convolutions cannot.
+
+### Model 3 — BiomedCLIP
+- **Framework:** PyTorch + open_clip
+- **Backbone:** `microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224` — pre-trained on 15M biomedical image–text pairs from PubMed Central
+- **Why:** Unlike ImageNet-pretrained models, BiomedCLIP already understands the visual language of medicine (dermoscopy, histology, clinical photography) before fine-tuning.
+
+### Ensemble
+Averages softmax probability vectors from all three models. Each model has complementary failure modes: EfficientNetB0 excels at texture, SwinV2 at global structure, BiomedCLIP at domain-specific features. The ensemble is more confident where all three agree and more uncertain where they disagree — a natural referral signal for ambiguous cases.
+
+---
+
+## Training Details
+
+| Setting | Value |
+|---------|-------|
+| Loss | Focal loss (γ=2.0) + risk-boosted class weights |
+| Risk boost | mel ×1.5, bcc ×1.3, scc ×1.3 |
+| Split | 70 / 15 / 15 stratified |
+| Input size | 224 × 224 RGB |
+| Batch size | 32 |
+| Phase 1 LR | 1e-3 (head only) |
+| Phase 2 LR | 1e-5 (full fine-tune) |
+| Augmentation | HFlip, VFlip, Rotation(30°), Zoom, ColorJitter, ChannelShift |
+| Mixed precision | float16 compute, float32 weights |
+
+Focal loss replaces standard cross-entropy to down-weight easy majority-class examples and concentrate gradient signal on hard, clinically important minority classes (mel, bcc, scc).
+
+---
+
+## Explainability (Grad-CAM)
+
+Grad-CAM heatmaps are generated for all three models to show which image regions drove each classification decision. This is essential for clinical trustworthiness — the model should attend to the lesion, not to dermoscope artefacts or image borders.
+
+- EfficientNetB0: TensorFlow GradientTape approach targeting the last convolutional block
+- SwinV2 / BiomedCLIP: `pytorch-grad-cam` library targeting the final transformer block
+
+---
 
 ## Fairness Audit
 
-After training, `src/fairness_audit.py` computes the following metrics stratified by Fitzpatrick skin type:
+Two held-out datasets — never seen during training — stress-test performance across skin tones:
 
-- Accuracy, sensitivity (recall), specificity per class
-- Equalized odds gap across skin type groups
-- Demographic parity difference
-- Per-group confusion matrices
+| Dataset | Size | Skin Tone Labels |
+|---------|------|------------------|
+| Fitzpatrick17k | 16,577 images | Fitzpatrick I–VI (explicit) |
+| DDI (Stanford) | ~656 images | Skin tone groups 1–2, 3–4, 5–6 |
 
-Results are written to `results/fairness_report.csv` and visualized in `notebooks/03_fairness_audit.ipynb`.
+Per-Fitzpatrick-type accuracy, melanoma recall, and BCC recall are reported for each model and the ensemble. A performance gap between lighter (I–II) and darker (V–VI) skin tones flags potential deployment bias.
+
+---
+
+## Results
+
+| Model | Bal. Accuracy | Macro AUROC | Mel Recall | BCC Recall | Fitz Gap |
+|-------|--------------|-------------|------------|------------|----------|
+| Bronze — EfficientNetB0 (HAM10000) | TBD | TBD | TBD | TBD | TBD |
+| EfficientNetB0 (Silver) | TBD | TBD | TBD | TBD | TBD |
+| SwinV2 (Silver) | TBD | TBD | TBD | TBD | TBD |
+| BiomedCLIP (Silver) | TBD | TBD | TBD | TBD | TBD |
+| Ensemble | TBD | TBD | TBD | TBD | TBD |
+
+*Results to be populated after training runs complete.*
+
+---
 
 ## Project Structure
 
 ```
 dermavision-ai/
-├── data/                   # Raw and processed datasets (git-ignored, see .gitignore)
+├── Silver-model.ipynb      # Main notebook: data loading, training, eval, fairness audit
+├── data/                   # Raw datasets (git-ignored; download via kagglehub)
 │   └── .gitkeep
-├── notebooks/
-│   ├── 01_eda.ipynb        # Exploratory data analysis & class distribution
-│   ├── 02_training.ipynb   # Training loop, loss curves, validation metrics
-│   └── 03_fairness_audit.ipynb  # Fairness analysis by Fitzpatrick type
-├── src/
-│   ├── dataset.py          # HAM10000Dataset, transforms, train/val split
-│   ├── model.py            # EfficientNetB0 wrapper and classifier head
-│   ├── train.py            # Training script (CLI entry point)
-│   ├── evaluate.py         # Evaluation metrics and confusion matrix
-│   └── fairness_audit.py   # Stratified fairness metrics by skin type
-├── results/                # Saved checkpoints, metrics, plots
 ├── .gitignore
 └── README.md
 ```
 
-## Setup
+The notebook runs in **Google Colab** (GPU recommended: T4 or A100). Datasets are downloaded automatically via `kagglehub`.
+
+---
+
+## Setup & Running
 
 ```bash
-# Clone the repo
 git clone https://github.com/rbennett16722-dot/dermavision-ai.git
 cd dermavision-ai
-
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install pandas scikit-learn matplotlib seaborn tqdm jupyter
 ```
 
-## Data
+Open `Silver-model.ipynb` in Google Colab. Cell 3 installs all dependencies and subsequent cells download all datasets automatically via `kagglehub` (Kaggle API credentials required).
 
-Download HAM10000 from the [Harvard Dataverse](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/DBW86T) and place the images and metadata CSV in `data/ham10000/`.
+**Datasets downloaded automatically:**
+- `andrewmvd/isic-2019`
+- `mahdavi1202/skin-cancer` (PAD-UFES-20)
+- `nguyenphucduyloc/milk10k-isic-challenge-2025`
+- `nazmusresan/fitzpatrick17k` (fairness audit)
+- `souvikda/ddidiversedermatology-multimodal-dataset` (fairness audit)
 
-Expected structure:
-```
-data/
-└── ham10000/
-    ├── HAM10000_metadata.csv
-    ├── HAM10000_images_part1/
-    └── HAM10000_images_part2/
-```
+---
 
-## Training
+## Silver vs. Bronze: Key Improvements
 
-```bash
-python src/train.py \
-  --data_dir data/ham10000 \
-  --epochs 30 \
-  --batch_size 32 \
-  --output_dir results/
-```
+| Dimension | Bronze | Silver |
+|-----------|--------|--------|
+| Training data | HAM10000 (~10k, 1 dataset) | ISIC 2019 + PAD-UFES-20 + MILK10k (~32.5k, 3 datasets) |
+| Classes | 7 | 9 (adds SCC) |
+| Skin tone coverage | Fitzpatrick I–III dominant | I–VI (PAD-UFES-20 adds darker tones) |
+| Imaging device | Dermoscope only | Dermoscope + smartphone |
+| Architecture | EfficientNetB0 only | EfficientNetB0 + SwinV2 + BiomedCLIP + Ensemble |
+| Loss | Cross-entropy | Focal loss + risk-boosted class weights |
+| Explainability | Not implemented | Grad-CAM for all 3 models |
+| Fairness audit | Within HAM10000 only | Held-out Fitzpatrick17k + DDI |
 
-## Fairness Audit
-
-```bash
-python src/fairness_audit.py \
-  --checkpoint results/best_model.pth \
-  --data_dir data/ham10000 \
-  --output results/fairness_report.csv
-```
-
-## Results
-
-| Metric | Value |
-|--------|-------|
-| Val Accuracy | TBD |
-| Macro F1 | TBD |
-| AUC-ROC (avg) | TBD |
-
-Fairness results by Fitzpatrick type are in `results/fairness_report.csv` after running the audit.
+---
 
 ## Limitations & Ethics
 
-- HAM10000 is heavily skewed toward lighter skin tones; fairness metrics should be interpreted with this in mind.
-- The model is **not** a clinical diagnostic tool. Do not use for medical decision-making.
-- Fitzpatrick type labels in HAM10000 are researcher-assigned, not self-reported.
+- HAM10000 and ISIC 2019 are skewed toward lighter skin tones (Fitzpatrick I–III). PAD-UFES-20 partially addresses this but darker-skin representation remains limited overall.
+- This model is **not** a clinical diagnostic tool. Do not use for medical decision-making.
+- Fitzpatrick labels in Fitzpatrick17k are researcher-assigned, not self-reported.
+- Only the BiomedCLIP visual encoder is used; the text encoder is discarded.
+
+---
 
 ## License
 
