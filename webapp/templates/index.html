@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DermaVision AI — Silver 2.1</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header .logo { font-size: 2rem; }
+    header h1   { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5px; }
+    header p    { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+    .version-badge {
+      margin-left: auto;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 999px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* ── Disclaimer ─────────────────────────────────────── */
+    .disclaimer {
+      background: #fff3cd;
+      border-left: 4px solid #f6ad55;
+      color: #744210;
+      padding: 0.6rem 1rem;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
+
+    /* ── Card ────────────────────────────────────────────── */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #4a5568;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Upload zone ─────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed #90cdf4;
+      border-radius: 10px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      background: #ebf8ff;
+    }
+    #drop-zone:hover, #drop-zone.dragover {
+      background: #bee3f8;
+      border-color: #2b6cb0;
+    }
+    #drop-zone p  { color: #2c5282; font-size: 0.9rem; margin-top: 0.5rem; }
+    #drop-zone .icon { font-size: 2.5rem; }
+    #file-input { display: none; }
+
+    .btn {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.55rem 1.4rem;
+      background: #2b6cb0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover    { background: #2c5282; }
+    .btn:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    /* ── Preview ─────────────────────────────────────────── */
+    #preview-wrap { display: none; margin-top: 1rem; text-align: center; }
+    #preview-img  {
+      max-width: 100%;
+      max-height: 260px;
+      border-radius: 8px;
+      object-fit: contain;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+    }
+    #filename { font-size: 0.78rem; color: #718096; margin-top: 0.4rem; }
+    #change-btn {
+      display: block;
+      margin: 0.5rem auto 0;
+      background: none;
+      border: none;
+      color: #2b6cb0;
+      font-size: 0.78rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* ── Spinner ─────────────────────────────────────────── */
+    #spinner { display: none; text-align: center; padding: 2rem 0; }
+    .spinner-ring {
+      display: inline-block;
+      width: 42px; height: 42px;
+      border: 4px solid #bee3f8;
+      border-top-color: #2b6cb0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #spinner p { margin-top: 0.75rem; color: #4a5568; font-size: 0.85rem; }
+
+    /* ── Results ─────────────────────────────────────────── */
+    #results { display: none; }
+
+    /* Top prediction banner */
+    .top-pred {
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .top-pred.risk-high     { background: #fff5f5; border: 1px solid #fc8181; }
+    .top-pred.risk-moderate { background: #fffaf0; border: 1px solid #f6ad55; }
+    .top-pred.risk-low      { background: #f0fff4; border: 1px solid #68d391; }
+
+    .risk-icon { font-size: 1.8rem; }
+    .top-pred-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .top-pred-sub { font-size: 0.78rem; color: #718096; margin-top: 2px; }
+    .risk-label {
+      margin-left: auto;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .risk-high     .risk-label { background: #feb2b2; color: #742a2a; }
+    .risk-moderate .risk-label { background: #fbd38d; color: #744210; }
+    .risk-low      .risk-label { background: #9ae6b4; color: #1c4532; }
+
+    /* Probability bars */
+    .prob-list { display: flex; flex-direction: column; gap: 0.55rem; }
+    .prob-row  { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+    .prob-row .label-col {
+      width: 52px;
+      font-weight: 600;
+      font-size: 0.77rem;
+      color: #4a5568;
+      flex-shrink: 0;
+    }
+    .bar-track {
+      flex: 1;
+      height: 10px;
+      background: #edf2f7;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.6s ease;
+    }
+    .bar-fill.risk-high     { background: #fc8181; }
+    .bar-fill.risk-moderate { background: #f6ad55; }
+    .bar-fill.risk-low      { background: #68d391; }
+    .bar-fill.risk-neutral  { background: #a0aec0; }
+    .prob-val {
+      width: 42px;
+      text-align: right;
+      font-size: 0.78rem;
+      color: #4a5568;
+      flex-shrink: 0;
+    }
+
+    /* Model breakdown accordion */
+    .accordion-btn {
+      width: 100%;
+      background: none;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      text-align: left;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #4a5568;
+      cursor: pointer;
+      margin-top: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .accordion-btn:hover { background: #f7fafc; }
+    .accordion-body {
+      display: none;
+      padding: 1rem 0 0;
+    }
+    .accordion-body.open { display: block; }
+
+    .model-section { margin-bottom: 1rem; }
+    .model-section h4 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #718096;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Ensemble weights info */
+    .weights-row {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.78rem;
+      color: #4a5568;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .weights-row span {
+      background: #edf2f7;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+    }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.75rem;
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🔬</span>
+  <div>
+    <h1>DermaVision AI</h1>
+    <p>Skin Lesion Classifier &mdash; Group 7 &nbsp;|&nbsp; MSBA Modern AI</p>
+  </div>
+  <span class="version-badge">Silver 2.1</span>
+</header>
+
+<div class="disclaimer">
+  For educational and research purposes only. Not a substitute for professional medical advice.
+</div>
+
+<main>
+
+  <!-- ── Upload panel ──────────────────────────────────── -->
+  <div class="card">
+    <h2>Upload Image</h2>
+
+    <div id="drop-zone">
+      <div class="icon">🖼️</div>
+      <p>Drag &amp; drop a lesion photo here, or click to browse</p>
+      <button class="btn" id="browse-btn" type="button">Choose File</button>
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="Preview" />
+      <div id="filename"></div>
+      <button id="change-btn" type="button">Change image</button>
+    </div>
+
+    <div id="spinner">
+      <div class="spinner-ring"></div>
+      <p>Running ensemble inference&hellip;</p>
+    </div>
+
+    <button class="btn" id="predict-btn" style="margin-top:1rem;width:100%;" disabled>
+      Analyse Image
+    </button>
+  </div>
+
+  <!-- ── Results panel ─────────────────────────────────── -->
+  <div class="card">
+    <h2>Ensemble Results</h2>
+
+    <div id="results">
+      <!-- Top prediction -->
+      <div id="top-pred-box" class="top-pred">
+        <span class="risk-icon" id="risk-icon"></span>
+        <div>
+          <div class="top-pred-name" id="top-name"></div>
+          <div class="top-pred-sub" id="top-code"></div>
+        </div>
+        <span class="risk-label" id="risk-label"></span>
+      </div>
+
+      <!-- Probability bars -->
+      <div class="prob-list" id="prob-bars"></div>
+
+      <!-- Ensemble weights -->
+      <div class="weights-row" id="weights-row"></div>
+
+      <!-- Per-model breakdown accordion -->
+      <button class="accordion-btn" id="accordion-btn">
+        Per-model breakdown <span id="chevron">▼</span>
+      </button>
+      <div class="accordion-body" id="accordion-body">
+        <div id="model-breakdown"></div>
+      </div>
+    </div>
+
+    <div id="placeholder" style="color:#a0aec0;font-size:0.875rem;padding-top:2rem;text-align:center;">
+      Upload an image and click "Analyse Image" to see results.
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  DermaVision AI &mdash; Silver 2.1 &nbsp;|&nbsp;
+  3-model weighted ensemble (EfficientNetB0 + SwinV2-tiny + BiomedCLIP)
+  with temperature calibration &amp; TTA
+</footer>
+
+<script>
+  // ── Elements ───────────────────────────────────────────────────────────────
+  const dropZone    = document.getElementById("drop-zone");
+  const fileInput   = document.getElementById("file-input");
+  const browseBtn   = document.getElementById("browse-btn");
+  const previewWrap = document.getElementById("preview-wrap");
+  const previewImg  = document.getElementById("preview-img");
+  const filenameEl  = document.getElementById("filename");
+  const changeBtn   = document.getElementById("change-btn");
+  const spinner     = document.getElementById("spinner");
+  const predictBtn  = document.getElementById("predict-btn");
+  const resultsEl   = document.getElementById("results");
+  const placeholder = document.getElementById("placeholder");
+
+  let selectedFile = null;
+
+  // ── Class metadata (mirrors backend) ──────────────────────────────────────
+  const LABEL_FULL = {
+    mel:   "Melanoma",
+    nv:    "Melanocytic Nevi",
+    bcc:   "Basal Cell Carcinoma",
+    akiec: "Actinic Keratosis / IEC",
+    bkl:   "Benign Keratosis-Like",
+    df:    "Dermatofibroma",
+    vasc:  "Vascular Lesion",
+    scc:   "Squamous Cell Carcinoma",
+    unk:   "Unknown / Other",
+  };
+  const RISK_TIER = {
+    mel: "high", bcc: "high", scc: "high",
+    akiec: "moderate",
+    nv: "low", bkl: "low", df: "low", vasc: "low", unk: "low",
+  };
+  const RISK_ICON = { high: "🔴", moderate: "🟠", low: "🟢" };
+  const LABEL_ORDER = ["mel", "bcc", "scc", "akiec", "nv", "bkl", "df", "vasc", "unk"];
+
+  // ── File selection ─────────────────────────────────────────────────────────
+  browseBtn.addEventListener("click", () => fileInput.click());
+  changeBtn.addEventListener("click", () => {
+    selectedFile = null;
+    predictBtn.disabled = true;
+    previewWrap.style.display = "none";
+    dropZone.style.display    = "";
+    resultsEl.style.display   = "none";
+    placeholder.style.display = "";
+    fileInput.value = "";
+  });
+
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+
+  function loadFile(file) {
+    if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src         = e.target.result;
+      filenameEl.textContent = file.name;
+      dropZone.style.display    = "none";
+      previewWrap.style.display = "block";
+      predictBtn.disabled       = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Inference ──────────────────────────────────────────────────────────────
+  predictBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+
+    predictBtn.disabled       = true;
+    spinner.style.display     = "block";
+    resultsEl.style.display   = "none";
+    placeholder.style.display = "none";
+
+    const form = new FormData();
+    form.append("file", selectedFile);
+
+    try {
+      const resp = await fetch("/predict", { method: "POST", body: form });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || resp.statusText);
+      }
+      const data = await resp.json();
+      renderResults(data);
+    } catch (err) {
+      alert("Prediction failed: " + err.message);
+    } finally {
+      spinner.style.display = "none";
+      predictBtn.disabled   = false;
+    }
+  });
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  function renderResults(data) {
+    const { top_class, top_full, risk_tier, ensemble, efficientnet, swinv2, biomedclip, meta } = data;
+
+    // Top banner
+    const box = document.getElementById("top-pred-box");
+    box.className = `top-pred risk-${risk_tier}`;
+    document.getElementById("risk-icon").textContent  = RISK_ICON[risk_tier];
+    document.getElementById("top-name").textContent   = top_full;
+    document.getElementById("top-code").textContent   = `Code: ${top_class.toUpperCase()}  ·  ${(ensemble[top_class]*100).toFixed(1)}% confidence`;
+    document.getElementById("risk-label").textContent = risk_tier.toUpperCase() + " RISK";
+
+    // Probability bars (sorted by ensemble probability desc)
+    const sorted = LABEL_ORDER.slice().sort((a, b) => ensemble[b] - ensemble[a]);
+    const barsEl = document.getElementById("prob-bars");
+    barsEl.innerHTML = sorted.map(lbl => {
+      const pct    = (ensemble[lbl] * 100).toFixed(1);
+      const barPct = Math.max(0.5, ensemble[lbl] * 100);
+      const tier   = RISK_TIER[lbl] || "neutral";
+      return `
+        <div class="prob-row">
+          <span class="label-col">${lbl.toUpperCase()}</span>
+          <div class="bar-track">
+            <div class="bar-fill risk-${tier}" style="width:${barPct}%"></div>
+          </div>
+          <span class="prob-val">${pct}%</span>
+        </div>`;
+    }).join("");
+
+    // Ensemble weights
+    const w = meta.weights;
+    document.getElementById("weights-row").innerHTML =
+      `<span>Weights — EfficientNetB0: ${(w.eff*100).toFixed(0)}%</span>` +
+      `<span>SwinV2: ${(w.swin*100).toFixed(0)}%</span>` +
+      `<span>BiomedCLIP: ${(w.clip*100).toFixed(0)}%</span>`;
+
+    // Per-model breakdown
+    const models = [
+      { key: "efficientnet", label: "EfficientNetB0 (TF/Keras)", probs: efficientnet },
+      { key: "swinv2",       label: `SwinV2-tiny (T=${meta.temperatures.swin})`, probs: swinv2 },
+      { key: "biomedclip",   label: `BiomedCLIP (T=${meta.temperatures.clip})`,  probs: biomedclip },
+    ];
+    document.getElementById("model-breakdown").innerHTML = models.map(m => `
+      <div class="model-section">
+        <h4>${m.label}</h4>
+        <div class="prob-list">
+          ${sorted.slice(0, 5).map(lbl => {
+            const pct = (m.probs[lbl]*100).toFixed(1);
+            const tier = RISK_TIER[lbl] || "neutral";
+            return `<div class="prob-row">
+              <span class="label-col">${lbl.toUpperCase()}</span>
+              <div class="bar-track">
+                <div class="bar-fill risk-${tier}" style="width:${Math.max(0.5,m.probs[lbl]*100)}%"></div>
+              </div>
+              <span class="prob-val">${pct}%</span>
+            </div>`;
+          }).join("")}
+        </div>
+      </div>`).join("");
+
+    placeholder.style.display = "none";
+    resultsEl.style.display   = "block";
+  }
+
+  // ── Accordion ──────────────────────────────────────────────────────────────
+  document.getElementById("accordion-btn").addEventListener("click", () => {
+    const body    = document.getElementById("accordion-body");
+    const chevron = document.getElementById("chevron");
+    const open    = body.classList.toggle("open");
+    chevron.textContent = open ? "▲" : "▼";
+  });
+</script>
+</body>
+</html>
