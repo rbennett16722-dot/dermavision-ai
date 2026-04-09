@@ -149,11 +149,10 @@ def _swin_preprocess(img: Image.Image):
 
     tf = T.Compose([
         T.Resize((256, 256)),
-        T.CenterCrop(224),
         T.ToTensor(),
         T.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
-    return tf(img).unsqueeze(0)  # [1, 3, 224, 224]
+    return tf(img).unsqueeze(0)  # [1, 3, 256, 256]
 
 
 # ── Inference ──────────────────────────────────────────────────────────────────
