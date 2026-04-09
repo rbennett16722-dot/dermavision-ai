@@ -75,6 +75,7 @@ IMAGENET_STD  = [0.229, 0.224, 0.225]
 
 # Populated during startup
 _models: dict = {}
+_ready: bool = False
 
 
 # ── Model architecture definitions (must mirror Silver-model-2.0.ipynb exactly) ─
@@ -263,8 +264,11 @@ async def lifespan(app: FastAPI):
     _models["clip_transform"] = clip_transform
     print("[DermaVision 2.1]  ✓ BiomedCLIP")
 
+    global _ready
     print("[DermaVision 2.1] All models ready — serving on http://localhost:8000")
+    _ready = True
     yield
+    _ready = False
     _models.clear()
 
 
@@ -280,6 +284,8 @@ async def index(request: Request):
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    if not _ready:
+        raise HTTPException(status_code=503, detail="Models are still loading, please wait a moment and try again.")
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Upload must be an image file.")
     data = await file.read()
@@ -293,4 +299,4 @@ async def predict(file: UploadFile = File(...)):
 @app.get("/health")
 async def health():
     loaded = [k for k in _models if k != "device"]
-    return {"status": "ok", "models_loaded": loaded}
+    return {"status": "ready" if _ready else "loading", "models_loaded": loaded}
