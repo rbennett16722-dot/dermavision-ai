@@ -101,6 +101,14 @@ Silver 2.0 applies three engineering improvements without retraining the underly
 
 **Additional fixes.** (a) Fitzpatrick17k label mapping: the original mapping covered only uppercase class codes (e.g., `MEL`, `BCC`), causing ~90% of Fitzpatrick17k rows to fall through to `unk` due to its lowercase and long-form disease naming conventions. We extended the mapping with 40+ aliases (e.g., "lentigo maligna melanoma" → mel, "seborrheic keratosis" → bkl, "nevus" → nv). (b) PAD-UFES-20 Fitzpatrick column: the Fitzpatrick labels were silently dropped after `pd.concat` due to column name inconsistency; we standardized to `fitzpatrick` across all source DataFrames before concatenation.
 
+### 4.8 Explainability — Grad-CAM
+
+AI models in healthcare must be explainable to be trustworthy. Neural networks do not by default indicate which image regions drove a classification decision. We implemented Gradient-weighted Class Activation Mapping (Grad-CAM) for all three models to produce visual heatmaps overlaid on input images, highlighting the pixels most influential in each prediction. For EfficientNetB0, we used TensorFlow's `GradientTape` targeting the last convolutional block. For SwinV2 and BiomedCLIP, we used the `pytorch-grad-cam` library targeting the final transformer attention block. A clinically valid prediction should attend to the lesion itself — not to dermoscope artefacts, image borders, or background skin. Grad-CAM outputs allow a reviewing clinician to spot-check model attention and build or withdraw trust in specific predictions.
+
+### 4.9 Evaluation Metrics and Baseline
+
+We evaluate all models on a held-out test set (n = 5,717) using the following metrics: **Balanced Accuracy** (mean recall across all 9 classes, unaffected by class imbalance), **Macro AUROC** (area under the ROC curve averaged across all classes in a one-vs-rest scheme), **Per-class Recall** for mel, bcc, and scc (clinically highest-priority malignant classes), and **Fitzpatrick Accuracy Gap** (max accuracy difference across skin tone groups on the Fitzpatrick17k held-out audit set). Overall accuracy is deliberately de-emphasized because a majority-class classifier (always predicting "nv") achieves 38.3% accuracy while catching zero melanomas. The majority-class classifier (balanced accuracy 0.111) and the Bronze-era EfficientNetB0 retrained on Silver data serve as controlled baselines.
+
 ---
 
 ## 5. Results
@@ -200,7 +208,7 @@ There is also a privacy dimension. Skin images are sensitive biometric data. Any
 
 **What was especially hard.** Aligning label vocabularies across three datasets with different disease naming conventions required extensive manual mapping work. The Fitzpatrick17k label mismatch that caused 90% of rows to be classified as `unk` was not caught until the fairness audit returned near-identical results for every skin tone group — a red flag that prompted investigation. Engineering the ensemble weight optimizer and temperature calibration without access to the test set (to avoid leakage) also required careful validation set management.
 
-**If we had more time and resources.** We would have rebalanced the SCC/BCC focal weight ratio (current 3.12:0.60 is too aggressive; a ratio closer to 1.5:0.8 better reflects relative clinical importance), retrained EfficientNetB0 Phase 2 with a lower learning rate (the backbone was effectively never fine-tuned due to val loss degradation in Phase 2), and sourced substantially more Fitzpatrick IV–VI labeled training data. We would also have built the full multi-model Streamlit app earlier to enable live testing during development rather than post-hoc.
+**If we were doing the project again with more time and resources, we would do several things differently.** We would rebalance the SCC/BCC focal weight ratio earlier (current 3.12:0.60 is too aggressive; a ratio closer to 1.5:0.8 better reflects relative clinical importance), retrain EfficientNetB0 Phase 2 with a lower learning rate (the backbone was effectively never fine-tuned due to val loss degradation), and source substantially more Fitzpatrick IV–VI labeled training data before training — not as a corrective afterthought. We would also build and test the Grad-CAM explainability pipeline and the full multi-model deployment app earlier in the development cycle to enable live feedback during training iterations.
 
 ---
 
