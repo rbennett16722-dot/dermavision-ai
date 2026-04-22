@@ -26,7 +26,7 @@ AI-based triage systems offer a partial solution, yet published models trained o
 
 ## 2. Related Work
 
-HAM10000 [1] established the dermoscopic classification benchmark with 10,015 images across 7 classes. Esteva et al. [2] demonstrated CNN performance matching board-certified dermatologists for melanoma classification. Adamson and Smith [3] documented the training data equity problem: models trained on predominantly light-skinned datasets perform substantially worse on darker-skinned patients. Groh et al. [4] introduced Fitzpatrick17k (16,577 images with Fitzpatrick I–VI labels) for skin-type-stratified fairness auditing, finding that without diverse training data, models invert the equity objective.
+HAM10000 [1] established the dermoscopic classification benchmark with 10,015 images across 7 classes. Esteva et al. [2] demonstrated CNN performance matching board-certified dermatologists for melanoma classification. Adamson and Smith [3] documented the training data equity problem: models trained on predominantly light-skinned datasets perform substantially worse on darker-skinned patients. Groh et al. [4] introduced Fitzpatrick17k (16,574 images with Fitzpatrick I–VI labels) for skin-type-stratified fairness auditing, finding that without diverse training data, models invert the equity objective.
 
 ISIC 2019 [5] extended HAM10000 to ~25,000 multi-country images and added SCC. PAD-UFES-20 [6] provided the first large-scale clinical smartphone dataset with explicit Fitzpatrick I–VI labels from a Brazilian public hospital. SwinV2 [8] introduced shifted-window self-attention for global spatial reasoning. BiomedCLIP [10] pre-trained a Vision Transformer on 15 million biomedical image–text pairs from PubMed Central. Lin et al. [9] introduced focal loss to address class imbalance. Our work is the first to combine ISIC 2019, PAD-UFES-20, and MILK10k and compare all three architectures in a single controlled framework with post-training calibration and held-out fairness auditing.
 
@@ -108,15 +108,15 @@ We evaluate all models on the held-out test set (n=5,717) using **balanced accur
 | Majority class baseline | 0.111 | — | 0.000 | 0.000 | 0.000 | — |
 | Silver — EfficientNetB0 | 0.372 | 0.869 | 0.531 | 0.043 | 0.709 | 0.164 |
 | Silver — SwinV2-Tiny | 0.713 | 0.957 | 0.761 | 0.748 | 0.600 | 0.358 |
-| Silver — BiomedCLIP | 0.602 | 0.930 | 0.797 | 0.653 | 0.566 | 0.193 |
+| Silver — BiomedCLIP | 0.602 | 0.930 | **0.797** | 0.653 | 0.566 | 0.193 |
 | Sv2.0 — EfficientNetB0 | 0.372 | 0.869 | 0.531 | 0.043 | 0.709 | 0.164 |
 | Sv2.0 — SwinV2 + TTA + Cal | 0.716 | **0.959** | 0.765 | 0.760 | 0.604 | 0.358 |
-| Sv2.0 — BiomedCLIP + TTA + Cal | 0.599 | 0.932 | **0.791** | 0.677 | 0.562 | 0.193 |
+| Sv2.0 — BiomedCLIP + TTA + Cal | 0.599 | 0.932 | 0.791 | 0.677 | 0.562 | 0.193 |
 | **Sv2.0 — Weighted Ensemble** | **0.721** | 0.957 | 0.788 | **0.733** | **0.668** | **0.350** |
 
 **Table 2: Model performance on held-out test set.** Bold = best in class. No model meets all clinical thresholds.
 
-No model meets all six clinical thresholds. The weighted ensemble is the strongest overall performer. BiomedCLIP achieves the highest individual melanoma recall (79.1%), consistent with its medical pre-training. SwinV2 achieves the best AUROC (0.959 with TTA + calibration). **On EfficientNetB0 BCC recall (0.043):** the model routes nearly all BCC predictions to SCC because the SCC focal weight (3.12×) is 5× the BCC weight (0.60×). The Nelder-Mead ensemble corrects this by down-weighting EfficientNetB0 (≈0.21), allowing SwinV2's 76.0% BCC recall to dominate. Silver 2.0 improves balanced accuracy from 0.699 (Silver equal-weight) to 0.721 and reduces the Fitzpatrick gap from 0.358 to 0.350.
+No model meets all six clinical thresholds. The weighted ensemble is the strongest overall performer. BiomedCLIP achieves the highest individual melanoma recall (79.7%), consistent with its medical pre-training. SwinV2 achieves the best AUROC (0.959 with TTA + calibration). **On EfficientNetB0 BCC recall (0.043):** the model routes nearly all BCC predictions to SCC because the SCC focal weight (3.12×) is 5× the BCC weight (0.60×). The Nelder-Mead ensemble corrects this by down-weighting EfficientNetB0 (≈0.21), allowing SwinV2's 76.0% BCC recall to dominate. Silver 2.0 improves balanced accuracy from 0.699 (Silver equal-weight) to 0.721 and reduces the Fitzpatrick gap from 0.358 to 0.350.
 
 ### 5.2 Fairness Audit — Fitzpatrick17k (held-out, n = 16,574)
 
@@ -129,7 +129,7 @@ No model meets all six clinical thresholds. The weighted ensemble is the stronge
 
 **Table 3: Fairness summary on Fitzpatrick17k.** All models fail both the accuracy equity target (< 0.05 gap) and the melanoma-recall equity target (< 0.10 gap) by a wide margin.
 
-The weighted ensemble's accuracy on Fitzpatrick I–III ranges from 0.375 to 0.570 (max gap 0.350). Rows IV–VI remain partially impacted by residual label-mapping issues. All models fail equity targets — a key finding.
+The weighted ensemble's accuracy ranges from 0.375 to 0.570 across Fitzpatrick I–III (gap 0.195); the full six-group max accuracy gap reaches 0.350, partly driven by residual label-mapping issues in groups IV–VI. All models fail equity targets — a key finding.
 
 ### 5.3 Fairness Audit — DDI Stanford (held-out, n = 656)
 
